@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Fare Estimator to LAX</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      width: 100%;
+      max-width: 500px;
+      text-align: center;
+    }
+    h2 { margin-bottom: 20px; font-size: 1.8em; color: #333; }
+    input, button {
+      padding: 12px;
+      margin-top: 10px;
+      width: 100%;
+      font-size: 1em;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    input:focus { border-color: #007bff; outline: none; }
+    button {
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover { background-color: #0056b3; }
+    label { text-align: left; display: block; font-size: 0.9em; margin-top: 15px; }
+    #fare, #distance, #duration, #error, #historyTitle { margin-top: 20px; font-size: 1.1em; }
+    #fare { color: #28a745; font-weight: bold; }
+    #error { color: #dc3545; }
+    #historyTitle { font-weight: bold; color: #343a40; }
+    ul#historyList {
+      text-align: left;
+      padding-left: 20px;
+      font-size: 0.95em;
+      color: #555;
+    }
+    li { margin-bottom: 8px; }
+    #map {
+      height: 300px;
+      width: 100%;
+      margin-top: 20px;
+      border-radius: 12px;
+    }
+    .note {
+      margin-top: 5px;
+      font-size: 0.95em;
+      color: #666;
+    }
+    @keyframes bounce {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-8px); }
+    }
+    @media (max-width: 600px) {
+      .card {
+        padding: 20px;
+      }
+      input, button {
+        font-size: 0.95em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="font-size: 2em; color: #0056b3; font-weight: bold; margin-bottom: 10px; animation: bounce 1s infinite alternate;">🚐 C los Transport LAX Fare Estimator</h2>
+    <p style="font-size: 1em; color: #555; margin-top: 0; margin-bottom: 20px;">Instant fare estimates based on your pickup location and travel time</p>
+    
+    <input id="pickup" type="text" placeholder="Enter pick-up address">
+    <label for="planTime">Pick-up Date and Time:</label>
+    <input type="datetime-local" id="planTime">
+
+    <button id="estimateButton">Estimate Fare</button>
+
+    <div id="loading" style="display:none; margin-top: 10px; font-style: italic; color: #666;">Calculating fare...</div>
+
+    <div id="fare"></div>
+    <div id="distance"></div>
+    <div id="duration"></div>
+    <div class="note" id="estimateType"></div>
+    <div id="error"></div>
+    <div id="map"></div>
+
+    <div id="historyTitle" style="display: none;">Estimate History:</div>
+    <button id="clearHistoryButton">Clear History</button>
+    <button onclick="window.print()">Print Fare Estimate</button>
+    <ul id="historyList"></ul>
+  </div>
+
+  <script>
+    let map, directionsRenderer, directionsService;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 34.0522, lng: -118.2437 },
+        zoom: 10
+      });
+      directionsService = new google.maps.DirectionsService();
+      directionsRenderer = new google.maps.DirectionsRenderer();
+      directionsRenderer.setMap(map);
+
+      const pickupInput = document.getElementById("pickup");
+      new google.maps.places.Autocomplete(pickupInput);
+    }
+
+    function isRushHour(dateTime) {
+      const hour = dateTime.getHours();
+      return (hour >= 6 && hour < 9) || (hour >= 16 && hour < 19);
+    }
+
+    function calculateFare(distanceMiles, durationMinutes, isPeak) {
+      const baseFare = 50;
+      const perMinute = isPeak ? 0.35 : 0.25;
+      let mileageCost = 0;
+
+      if (distanceMiles > 5) {
+        const billableMiles = distanceMiles - 5;
+
+        if (distanceMiles <= 10) {
+          mileageCost = billableMiles * 2.50;
+        } else if (distanceMiles <= 20) {
+          mileageCost = (5 * 2.50) + ((billableMiles - 5) * 2.00);
+        } else if (distanceMiles <= 30) {
+          mileageCost = (5 * 2.50) + (10 * 2.00) + ((billableMiles - 15) * 1.75);
+        } else if (distanceMiles <= 50) {
+          mileageCost = (5 * 2.50) + (10 * 2.00) + (10 * 1.75) + ((billableMiles - 25) * 1.50);
+        } else if (distanceMiles <= 75) {
+          mileageCost = (5 * 2.50) + (10 * 2.00) + (10 * 1.75) + (20 * 1.50) + ((billableMiles - 45) * 1.25);
+        } else if (distanceMiles <= 100) {
+          mileageCost = (5 * 2.50) + (10 * 2.00) + (10 * 1.75) + (20 * 1.50) + (25 * 1.25) + ((billableMiles - 70) * 1.00);
+        } else {
+          mileageCost = (5 * 2.50) + (10 * 2.00) + (10 * 1.75) + (20 * 1.50) + (25 * 1.25) + (25 * 1.00) + ((billableMiles - 95) * 0.75);
+        }
+      }
+
+      const timeCost = durationMinutes * perMinute;
+      let fare = baseFare + mileageCost + timeCost;
+
+      fare = Math.round(fare / 5) * 5;
+      return fare.toFixed(2);
+    }
+
+    function saveHistory(pickup, fare, distanceMiles, durationText) {
+      const list = document.getElementById("historyList");
+      const historyText = `From ${pickup} to LAX: $${fare}, ${distanceMiles.toFixed(1)} miles, ${durationText}`;
+      const li = document.createElement("li");
+      li.textContent = historyText;
+      list.appendChild(li);
+      document.getElementById("historyTitle").style.display = "block";
+    }
+
+    document.getElementById("clearHistoryButton").addEventListener("click", () => {
+      document.getElementById("historyList").innerHTML = "";
+      document.getElementById("historyTitle").style.display = "none";
+    });
+
+    document.getElementById("estimateButton").addEventListener("click", () => {
+      const pickup = document.getElementById("pickup").value;
+      const planTime = document.getElementById("planTime").value;
+      const errorDiv = document.getElementById("error");
+      const loadingDiv = document.getElementById("loading");
+      errorDiv.textContent = "";
+
+      if (!pickup) {
+        errorDiv.textContent = "Please enter a pickup address.";
+        return;
+      }
+
+      const travelTime = planTime ? new Date(planTime) : new Date();
+      const now = new Date();
+      if (travelTime < now) {
+        errorDiv.textContent = "Please choose a future pickup time.";
+        return;
+      }
+
+      const isPeak = isRushHour(travelTime);
+      loadingDiv.style.display = "block";
+
+      directionsService.route({
+        origin: pickup,
+        destination: "LAX Airport, Los Angeles, CA",
+        travelMode: google.maps.TravelMode.DRIVING,
+        drivingOptions: {
+          departureTime: travelTime,
+          trafficModel: 'bestguess'
+        }
+      }, (result, status) => {
+        loadingDiv.style.display = "none";
+
+        if (status === 'OK') {
+          directionsRenderer.setDirections(result);
+          const leg = result.routes[0].legs[0];
+          const distanceMiles = leg.distance.value / 1609.34;
+          const durationMinutes = leg.duration_in_traffic ?
+                                   leg.duration_in_traffic.value / 60 :
+                                   leg.duration.value / 60;
+          const fare = calculateFare(distanceMiles, durationMinutes, isPeak);
+
+          const hours = Math.floor(durationMinutes / 60);
+          const minutes = Math.round(durationMinutes % 60);
+          const durationText = hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
+
+          document.getElementById("fare").textContent = `Estimated Fare: $${fare}`;
+          document.getElementById("distance").textContent = `Distance: ${distanceMiles.toFixed(1)} miles`;
+          document.getElementById("duration").textContent = `Estimated Time: ${durationText}`;
+          document.getElementById("estimateType").textContent = isPeak ? "Estimated for Rush Hour" : "Estimated with current traffic";
+
+          saveHistory(pickup, fare, distanceMiles, durationText);
+        } else {
+          errorDiv.textContent = "Could not calculate route. Please try again.";
+        }
+      });
+    });
+
+    window.onload = () => {
+      const now = new Date();
+      document.getElementById("planTime").min = now.toISOString().slice(0, 16);
+    }
+
+    window.initMap = initMap;
+  </script>
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAhNmuewbAV1mbozEzcqoMtxxmuiop8Dqc&libraries=places&callback=initMap"></script>
+</body>
+</html>

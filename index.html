@@ -734,7 +734,7 @@
     </header>
 
     <div id="setupBanner" class="setup-banner">
-      Google Maps is not connected yet. Add your restricted Google Maps browser API key in the <strong>CONFIG</strong> section near the bottom of this file. Enable Maps JavaScript API and Places API for the key.
+      Google Maps is not connected yet. Add your Google Maps API key in the <strong>CONFIG</strong> section near the bottom of this file. Enable Maps JavaScript API and Places API for the key.
     </div>
 
     <div class="layout">
@@ -896,7 +896,7 @@
     /* =========================================================
        MYRIDESOCAL CONFIG
        Change rates/capacities here without changing the app code.
-       IMPORTANT: use a browser-restricted Google Maps API key.
+       Add your Google Maps API key below.
        ========================================================= */
     const CONFIG = {
       googleMapsApiKey: "AIzaSyAhNmuewbAV1mbozEzcqoMtxxmuiop8Dqc",
@@ -1213,7 +1213,7 @@
       clearError();
 
       if (!directionsService || !window.google?.maps) {
-        showError("Google Maps is not connected. Add a restricted browser API key in the CONFIG section first.");
+        showError("Google Maps is not connected. Add your Google Maps API key in the CONFIG section first.");
         return;
       }
 
@@ -1467,7 +1467,7 @@
       script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(CONFIG.googleMapsApiKey)}&libraries=places&callback=initMap`;
       script.async = true;
       script.defer = true;
-      script.onerror = () => showError("Google Maps could not load. Check your API key, billing, API restrictions, and website referrer restrictions.");
+      script.onerror = () => showError("Google Maps could not load. Check your API key, billing, and enabled Google Maps APIs.");
       document.head.appendChild(script);
     }
 
